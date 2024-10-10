@@ -169,8 +169,7 @@ def test(size, size_initial, dataset_name='cameraman'):
 
     # Paso 2: Interpolación de N inicial a N grande
     size_out = size
-    x_init = interpolate(x_[:N], x_[N:N+M], x_[N+M:N+2*M], x_[N+2*M:N+2*M+P],
-                         x_[N+2*M+P:N+3*M+P], x_[N+3*M+P:N+4*M+P], x_[N+4*M+P:N+5*M+P], size_out)
+    x_init = interpolate(x_[:N], x_[N:N+M], x_[N+M:N+2*M], x_[N+2*M:N+2*M+P],x_[N+2*M+P:N+3*M+P], x_[N+3*M+P:N+4*M+P], x_[N+4*M+P:N+5*M+P], size_out)
 
     utrue_new, unoisy_new = get_dataset(
         dataset_name, size_out).get_training_data()
