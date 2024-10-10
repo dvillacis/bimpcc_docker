@@ -8,10 +8,9 @@ from bimpcc.Dataset import get_dataset
 
 def test(size=5, dataset_name='cameraman'):
     # Paso 1: Resolver para N inicial
-    size_initial = 12
-    utrue, unoisy = get_dataset(dataset_name, size_initial).get_training_data()
+    utrue, unoisy = get_dataset(dataset_name, size).get_training_data()
 
-    Kx, Ky, _ = generate_2D_gradient_matrices(size_initial)
+    Kx, Ky, _ = generate_2D_gradient_matrices(size)
     M, N = Kx.shape  
     P = 1
 
@@ -78,7 +77,7 @@ def test(size=5, dataset_name='cameraman'):
         utrue,  
         unoisy,  
         pi_init=1.0,
-        mu_init=1.0,
+        mu_init=100.0,
         tol=1e-3
     )
     

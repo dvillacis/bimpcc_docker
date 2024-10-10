@@ -14,7 +14,7 @@ def solve_mpcc_scholtes(
     pi_init=1.0,
     mu_init=1.0,
     sigma=0.1,
-    k_max=100,
+    k_max=10,
     gamma=0.4,
     kappa=0.2,
     nu=0.1,
@@ -48,12 +48,12 @@ def solve_mpcc_scholtes(
         )
         # Add configuration to ipopt
         # nlp.add_option('nlp_scaling_method', 'none')
-        nlp.add_option('mu_init', mu)
+        # nlp.add_option('mu_init', mu)
         # nlp.add_option('mu_strategy', 'monotone')
         nlp.add_option('dual_inf_tol', tol_p)
         nlp.add_option('constr_viol_tol', tol_p)
         nlp.add_option('compl_inf_tol', tol_p)
-        nlp.add_option('print_level', 5)
+        nlp.add_option('print_level', 0)
         # nlp.add_option('check_derivatives_for_naninf', 'yes')
         # nlp.add_option('max_iter', 10)
         # nlp.add_option('nlp_scaling_method', 'none')
@@ -61,8 +61,8 @@ def solve_mpcc_scholtes(
         nlp.add_option('hessian_approximation', 'limited-memory')
         # nlp.add_option('fast_step_computation', 'yes')
         nlp.add_option('sb', 'yes')
-        nlp.add_option('derivative_test', 'first-order')
-        # nlp.add_option('jacobian_approximation', 'finite-difference-values')
+        # nlp.add_option('derivative_test', 'first-order')
+        nlp.add_option('jacobian_approximation', 'finite-difference-values')
         x_, info = nlp.solve(x)
         x_ = np.clip(x_, lb, ub)
         # print(x_)
@@ -78,14 +78,14 @@ def solve_mpcc_scholtes(
         # print(info)
         print(f'{k: > 5}\t{info["status"]: > 15}\t{info["obj_val"]: > 15}\t{comp: > 15}\t{np.log10(mu): > 15}\t{pi: > 15}\t{info['status_msg'][:50]}')
         
-        if (np.abs(comp) < tol):
+        if (np.abs(comp) < tol) or k >= k_max:
             print(f'Obtained solution satisfies the complementarity condition at {comp} at {k} iterations')
             infos.append(info)
             break
         else:
             last_obj = info['obj_val']
             pi *= sigma
-            mu *= kappa
+            # mu *= kappa
 
         # if (np.abs(comp) <= tol_p):  # & (info['status'] >= -1):
         #     k += 1
@@ -101,7 +101,7 @@ def solve_mpcc_scholtes(
         #         break
 
         infos.append(info)
-        k = k_max
+        # k = k_max
     v = problem_instance.getvars(x)
 
     return (v), pd.DataFrame().from_records(infos)
