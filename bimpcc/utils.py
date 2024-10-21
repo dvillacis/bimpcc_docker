@@ -34,8 +34,9 @@ def generate_2D_gradient_matrices(N) -> tuple:
     # Llenar K alternando filas de Kx y Ky
     K[::2] = Kx  # Fila 1 de Kx, fila 3 de Kx, etc.
     K[1::2] = Ky  # Fila 2 de Ky, fila 4 de Ky, etc
+    h = 1/(N-1)
 
-    return Kx, Ky, K
+    return h*Kx, h*Ky, h*K
 
 def coef(gamma, rho, beta, delta_gamma, z):
     A = beta * delta_gamma - beta * z * (z / gamma + rho) ** (z - 1)

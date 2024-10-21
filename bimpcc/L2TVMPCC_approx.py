@@ -2,7 +2,7 @@ import numpy as np
 from .AbstractMPCC import AbstractMPCC
 
 
-class L2TVMPCC_scholtes(AbstractMPCC):
+class L2TVMPCC_approx(AbstractMPCC):
 
     def __init__(self, pi, A, Kx, Ky, Q, utrue, unoisy, epsilon=1e-4, gamma=0):
         '''
@@ -77,31 +77,34 @@ class L2TVMPCC_scholtes(AbstractMPCC):
 
     def objective(self, x):
         u, qx, qy, alpha, r, delta, theta = self.getvars(x)
-        return 0.5*np.linalg.norm(u-self.utrue)**2 + 0.5*self.epsilon*np.linalg.norm(qx)**2 + self.epsilon*np.linalg.norm(qy)**2 + self.epsilon*np.linalg.norm(alpha)**2 + self.epsilon*np.linalg.norm(r)**2 + self.epsilon*np.linalg.norm(theta)**2 + self.epsilon*np.linalg.norm(delta)**2
+        # print(f'Approx pi_max: {(0.01*np.linalg.norm(x)**2)/(0.5*np.dot(r,delta))}')
+        # m = np.maximum(0, -delta)
+        return 0.5*np.linalg.norm(u-self.utrue)**2 + self.pi*self.complementarity(x) + self.epsilon*np.linalg.norm(qx)**2 + self.epsilon*np.linalg.norm(qy)**2 + self.epsilon*np.linalg.norm(alpha)**2 + self.epsilon*np.linalg.norm(r)**2 + self.epsilon*np.linalg.norm(theta)**2 + self.epsilon*np.linalg.norm(delta)**2
 
     def gradient(self, x):
         u, qx, qy, alpha, r, delta, theta = self.getvars(x)
         grad_u = u-self.utrue
-        grad_qx = np.zeros(self.M) + self.epsilon*qx
-        grad_qy = np.zeros(self.M) + self.epsilon*qy
-        grad_alpha = self.epsilon * alpha
-        grad_r = self.epsilon * r
-        grad_delta = self.epsilon*delta
-        grad_theta = self.epsilon*theta
+        grad_qx = np.zeros(self.M) + 2*self.epsilon*qx
+        grad_qy = np.zeros(self.M) + 2*self.epsilon*qy
+        grad_alpha = self.pi*(self.Q.T@r) + 2*self.epsilon*alpha
+        grad_r = self.pi*((self.Q@alpha)-delta) + 2*self.epsilon*r
+        grad_delta = -self.pi*(r) + 2*self.epsilon*delta
+        grad_theta = np.zeros(self.M) + 2*self.epsilon*theta
         return np.concatenate((grad_u, grad_qx, grad_qy, grad_alpha, grad_r, grad_delta, grad_theta))
 
     def constraints(self, x):
         u, qx, qy, alpha, r, delta, theta = self.getvars(x)
-        # print('Computing')
-        ct = 1-0.5*theta**2
-        st = theta - 0.16666*theta**3
+        # ct = np.cos(theta)
+        ct = 1 - 0.5*theta**2
+        # st = np.sin(theta)
+        st = theta - (1/6)*theta**3
         cons = np.concatenate((
             self.A.T@(self.A@u) - self.A.T@self.unoisy + self.Kx.T@qx + self.Ky.T@qy,
             self.Kx@u - r*ct,
             self.Ky@u - r*st,
             qx-delta*ct,
             qy-delta*st,
-            r*(self.Q@alpha - delta)-self.pi
+            self.Q@alpha - delta
         ))
         return cons
 
@@ -122,12 +125,14 @@ class L2TVMPCC_scholtes(AbstractMPCC):
             [Ky, Zm, Zm, Zp, Im, Zm, Im],
             [Zn, Im, Zm, Zp, Zm, Im, Im],
             [Zn, Zm, Im, Zp, Zm, Im, Im],
-            [Zn, Zm, Zm, self.Q, Im, Im, Zm]
+            [Zn, Zm, Zm, self.Q, Zm, Im, Zm]
         ])
         return jac.nonzero()
 
     def jacobian(self, x):
         u, qx, qy, alpha, r, delta, theta = self.getvars(x)
+        ct = 1 - 0.5*theta**2
+        st = theta - (1/6)*theta**3
         Zm = np.zeros((self.M, self.M))
         Zp = np.zeros((self.M, self.P))
         Znp = np.zeros((self.N, self.P))
@@ -141,15 +146,15 @@ class L2TVMPCC_scholtes(AbstractMPCC):
         Ky = self.Ky
         jac = np.block([
             [self.A.T@self.A, Kx.T, Ky.T, Znp, Znm, Znm, Znm],
-            [Kx, Zm, Zm, Zp, np.diag(-np.cos(theta)),
-             Zm, np.diag(r*np.sin(theta))],
-            [Ky, Zm, Zm, Zp, np.diag(-np.sin(theta)),
-             Zm, np.diag(-r*np.cos(theta))],
+            [Kx, Zm, Zm, Zp, np.diag(-ct),
+             Zm, np.diag(r*theta)],
+            [Ky, Zm, Zm, Zp, np.diag(-st),
+             Zm, np.diag(-r+0.5*r*theta**2)],
             [Zn, Im, Zm, Zp, Zm,
-                np.diag(-np.cos(theta)), np.diag(delta*np.sin(theta))],
+                np.diag(-ct), np.diag(delta*theta)],
             [Zn, Zm, Im, Zp, Zm,
-                np.diag(-np.sin(theta)), np.diag(-delta*np.cos(theta))],
-            [Zn, Zm, Zm, np.diag(r)@self.Q, np.diag(self.Q@alpha), -np.diag(r), Zm]
+                np.diag(-st), np.diag(-delta+0.5*delta*theta**2)],
+            [Zn, Zm, Zm, self.Q, Zm, -Im, Zm]
         ])
         # print(f'{jac.shape=}')
         # row, col = jac.nonzero()

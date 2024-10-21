@@ -2,9 +2,9 @@ import numpy as np
 from .AbstractMPCC import AbstractMPCC
 
 
-class L2TVMPCC_scholtes(AbstractMPCC):
+class L2TVMPCC_pen2(AbstractMPCC):
 
-    def __init__(self, pi, A, Kx, Ky, Q, utrue, unoisy, epsilon=1e-4, gamma=0):
+    def __init__(self, pi, A, Kx, Ky, Q, utrue, unoisy, epsilon=1e-7, gamma=0):
         '''
         TVDenoising MPCC Penalized Problem
         
@@ -22,7 +22,9 @@ class L2TVMPCC_scholtes(AbstractMPCC):
         utrue: np.ndarray
             True image
         '''
+        # print(f'Creating MPCC with pi={pi}, epsilon={epsilon}, gamma={gamma}')
         self.pi = pi
+        self.pi2 = 0.2*pi
         self.A = A
         self.Kx = Kx
         self.Ky = Ky
@@ -77,31 +79,39 @@ class L2TVMPCC_scholtes(AbstractMPCC):
 
     def objective(self, x):
         u, qx, qy, alpha, r, delta, theta = self.getvars(x)
-        return 0.5*np.linalg.norm(u-self.utrue)**2 + 0.5*self.epsilon*np.linalg.norm(qx)**2 + self.epsilon*np.linalg.norm(qy)**2 + self.epsilon*np.linalg.norm(alpha)**2 + self.epsilon*np.linalg.norm(r)**2 + self.epsilon*np.linalg.norm(theta)**2 + self.epsilon*np.linalg.norm(delta)**2
+        # print(f'Approx pi_max: {(0.01*np.linalg.norm(x)**2)/(0.5*np.dot(r,delta))}')
+        # m = np.maximum(0, -delta)
+
+        obj = 0.5*np.linalg.norm(u-self.utrue)**2 
+        comp = 0.5*self.pi * self.complementarity(x)
+        van1 = 0.5*self.pi2 * np.linalg.norm(self.Kx@u - r*np.cos(theta))**2
+        van2 = 0.5*self.pi2 * np.linalg.norm(self.Ky@u - r*np.sin(theta))**2
+        van3 = 0.5*self.pi2 * np.linalg.norm(qx - delta*np.cos(theta))**2
+        van4 = 0.5*self.pi2 * np.linalg.norm(qy - delta*np.sin(theta))**2
+        tik = self.epsilon * (np.linalg.norm(alpha)**2 + np.linalg.norm(r)**2 + np.linalg.norm(delta)**2 + np.linalg.norm(theta)**2)
+
+        return obj + comp + van1 + van2 + van3 + van4 + tik
 
     def gradient(self, x):
         u, qx, qy, alpha, r, delta, theta = self.getvars(x)
-        grad_u = u-self.utrue
-        grad_qx = np.zeros(self.M) + self.epsilon*qx
-        grad_qy = np.zeros(self.M) + self.epsilon*qy
-        grad_alpha = self.epsilon * alpha
-        grad_r = self.epsilon * r
-        grad_delta = self.epsilon*delta
-        grad_theta = self.epsilon*theta
+        grad_u = u-self.utrue + self.pi2*self.Kx.T@(self.Kx@u - r*np.cos(theta)) + self.pi2*self.Ky.T@(self.Ky@u - r*np.sin(theta))
+        grad_qx = self.pi2*(qx - delta*np.cos(theta))
+        grad_qy = self.pi2*(qy - delta*np.sin(theta))
+        grad_alpha = 0.5*self.pi*(self.Q.T@r) + 2*self.epsilon*alpha
+        grad_r = 0.5*self.pi*((self.Q@alpha)-delta) - self.pi2*np.cos(theta)*(self.Kx@u - r*np.cos(theta)) - self.pi2*np.sin(theta)*(self.Ky@u-r*np.sin(theta)) + 2*self.epsilon*r
+        grad_delta = -0.5*self.pi*(r) - self.pi2*np.cos(theta)*(qx - delta*np.cos(theta)) - self.pi2*np.sin(theta)*(qy - delta*np.sin(theta)) + 2*self.epsilon*delta
+        grad_theta = self.pi2*np.sin(theta)*r*(self.Kx@u - r*np.cos(theta)) - self.pi2*np.cos(theta)*r*(self.Ky@u - r*np.sin(theta)) + self.pi2*np.sin(theta)*delta*(qx - delta*np.cos(theta)) - self.pi2*np.cos(theta)*delta*(qy - delta*np.sin(theta)) + 2*self.epsilon*theta
         return np.concatenate((grad_u, grad_qx, grad_qy, grad_alpha, grad_r, grad_delta, grad_theta))
 
     def constraints(self, x):
         u, qx, qy, alpha, r, delta, theta = self.getvars(x)
-        # print('Computing')
-        ct = 1-0.5*theta**2
-        st = theta - 0.16666*theta**3
         cons = np.concatenate((
             self.A.T@(self.A@u) - self.A.T@self.unoisy + self.Kx.T@qx + self.Ky.T@qy,
-            self.Kx@u - r*ct,
-            self.Ky@u - r*st,
-            qx-delta*ct,
-            qy-delta*st,
-            r*(self.Q@alpha - delta)-self.pi
+            # self.Kx@u - r*np.cos(theta),
+            # self.Ky@u - r*np.sin(theta),
+            # qx-delta*np.cos(theta),
+            # qy-delta*np.sin(theta),
+            self.Q@alpha - delta
         ))
         return cons
 
@@ -118,11 +128,11 @@ class L2TVMPCC_scholtes(AbstractMPCC):
         Ky = self.Ky
         jac = np.block([
             [self.A.T@self.A, Kx.T, Ky.T, Znp, Znm, Znm, Znm],
-            [Kx, Zm, Zm, Zp, Im, Zm, Im],
-            [Ky, Zm, Zm, Zp, Im, Zm, Im],
-            [Zn, Im, Zm, Zp, Zm, Im, Im],
-            [Zn, Zm, Im, Zp, Zm, Im, Im],
-            [Zn, Zm, Zm, self.Q, Im, Im, Zm]
+            # [Kx, Zm, Zm, Zp, Im, Zm, Im],
+            # [Ky, Zm, Zm, Zp, Im, Zm, Im],
+            # [Zn, Im, Zm, Zp, Zm, Im, Im],
+            # [Zn, Zm, Im, Zp, Zm, Im, Im],
+            [Zn, Zm, Zm, self.Q, Zm, Im, Zm]
         ])
         return jac.nonzero()
 
@@ -141,15 +151,15 @@ class L2TVMPCC_scholtes(AbstractMPCC):
         Ky = self.Ky
         jac = np.block([
             [self.A.T@self.A, Kx.T, Ky.T, Znp, Znm, Znm, Znm],
-            [Kx, Zm, Zm, Zp, np.diag(-np.cos(theta)),
-             Zm, np.diag(r*np.sin(theta))],
-            [Ky, Zm, Zm, Zp, np.diag(-np.sin(theta)),
-             Zm, np.diag(-r*np.cos(theta))],
-            [Zn, Im, Zm, Zp, Zm,
-                np.diag(-np.cos(theta)), np.diag(delta*np.sin(theta))],
-            [Zn, Zm, Im, Zp, Zm,
-                np.diag(-np.sin(theta)), np.diag(-delta*np.cos(theta))],
-            [Zn, Zm, Zm, np.diag(r)@self.Q, np.diag(self.Q@alpha), -np.diag(r), Zm]
+            # [Kx, Zm, Zm, Zp, np.diag(-np.cos(theta)),
+            #  Zm, np.diag(r*np.sin(theta))],
+            # [Ky, Zm, Zm, Zp, np.diag(-np.sin(theta)),
+            #  Zm, np.diag(-r*np.cos(theta))],
+            # [Zn, Im, Zm, Zp, Zm,
+            #     np.diag(-np.cos(theta)), np.diag(delta*np.sin(theta))],
+            # [Zn, Zm, Im, Zp, Zm,
+            #     np.diag(-np.sin(theta)), np.diag(-delta*np.cos(theta))],
+            [Zn, Zm, Zm, self.Q, Zm, -Im, Zm]
         ])
         # print(f'{jac.shape=}')
         # row, col = jac.nonzero()

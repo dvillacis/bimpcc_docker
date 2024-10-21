@@ -12,7 +12,7 @@ def solve_mpcc(
     cu,
     *args,
     pi_init=1.0,
-    mu_init=100.0,
+    mu_init=0.1,
     sigma=10,
     k_max=100,
     gamma=0.4,
@@ -55,18 +55,21 @@ def solve_mpcc(
         nlp.add_option('compl_inf_tol', tol_p)
         nlp.add_option('print_level', 5)
         # nlp.add_option('check_derivatives_for_naninf', 'yes')
-        # nlp.add_option('max_iter', 10)
+        nlp.add_option('max_iter', 10000)
         # nlp.add_option('nlp_scaling_method', 'none')
-        nlp.add_option('tol', tol)
-        nlp.add_option('hessian_approximation', 'limited-memory')
+        nlp.add_option('acceptable_tol', tol_p)
+        nlp.add_option('tol', tol_p)
+        nlp.add_option('jacobian_approximation', 'exact')
+        nlp.add_option('hessian_approximation', 'exact')
+        # nlp.add_option('jacobian_regularization_value', 1e-3)
         # nlp.add_option('fast_step_computation', 'yes')
         nlp.add_option('sb', 'yes')
-        # nlp.add_option('derivative_test', 'first-order')
+        # nlp.add_option('derivative_test', 'second-order')
         # nlp.add_option('jacobian_approximation', 'finite-difference-values')
         x_, info = nlp.solve(x)
-        x_ = np.clip(x_, lb, ub)
+        # x_ = np.clip(x_, lb, ub)
         # print(x_)
-        comp = problem_instance.complementarity(x_)
+        comp = problem_instance.min_complementarity(x_)
         # comp = problem_instance.min_complementarity(x_)
         # info['extra'] = {'k': k, 'comp': comp, 'mu': mu, 'pi': pi}
         info['k'] = k
@@ -86,8 +89,10 @@ def solve_mpcc(
         else:
             last_obj = info['obj_val']
 
+        k += 1
+        
         if (np.abs(comp) <= tol_c):  # & (info['status'] >= -1):
-            k += 1
+            
             x = x_
             # if (np.abs(last_obj-info['obj_val']) < tol ):
             mu *= kappa

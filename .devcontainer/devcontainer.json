@@ -1,0 +1,7 @@
+{
+    "name": "bilevel_mpcc",
+    "build": {
+        "dockerfile": "../Dockerfile",
+        "context": ".."
+    }
+}

@@ -38,20 +38,12 @@ class Synthetic:
     
     def get_training_data(self):
         return self.img_true, self.img_noisy
-    
-class Cameraman(Dataset):
-    def __init__(self,scale):
-        super().__init__('datasets/cameraman/cameraman.png',scale)
-        
-class Wood(Dataset):
-    def __init__(self,scale):
-        super().__init__('datasets/wood/wood.png',scale)
 
-def get_dataset(dataset_name, scale=256):
+def get_dataset(dataset_name, scale=256, folder='datasets'):
     if dataset_name == 'cameraman':
-        return Cameraman(scale)
+        return Dataset(f'{folder}/cameraman/cameraman.png', scale)
     elif dataset_name == 'wood':
-        return Wood(scale)
+        return Dataset(f'{folder}/wood/wood.png', scale)
     elif dataset_name == 'synthetic':
         return Synthetic(scale)
     else:
